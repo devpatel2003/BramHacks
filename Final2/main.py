@@ -28,7 +28,7 @@ HOME_TILT = 43.0
 NO_TARGET_TIMEOUT_S = 0.6
 
 CFG = AimerConfig(
-    pivot_mm=(40.0, 77.6, -29.6),    # your calibrated pivot
+    pivot_mm=(40.0, 77.6, -29.6),    # Location of gimbal pivot in camera frame
     camera_axes_convention="y_down",
     pan_zero=HOME_PAN,
     tilt_zero=HOME_TILT,
@@ -39,10 +39,16 @@ CFG = AimerConfig(
 )
 
 def quantize(angle_deg: float, step_deg: float) -> float:
+    """
+    Quantize angle to nearest servo step
+    """
     step = max(step_deg, 1e-9)
     return round(angle_deg / step) * step
 
 def send_angles(ser, pan, tilt):
+    """
+    Send pan/tilt angles (deg) to serial servo controller
+    """
     cmd = f"PAN={pan:.2f},TILT={tilt:.2f}\n"
     ser.write(cmd.encode("ascii"))
 
@@ -63,7 +69,7 @@ def main():
 
             now = time.time()
             if target is not None:
-                res = aimer.aim_to_target(target)
+                res = aimer.aim_to_target(target) # returns dict with servo_pan_deg, servo_tilt_deg
                 pan = quantize(res["servo_pan_deg"], SERVO_STEP_DEG)
                 tilt = quantize(res["servo_tilt_deg"], SERVO_STEP_DEG)
 
@@ -92,7 +98,7 @@ def main():
                 k = cv2.waitKey(1) & 0xFF
                 if k == ord('q'):
                     break
-                elif k == ord('b'):
+                elif k == ord('b'): # rescan background for threshold
                     # compatibility: do nothing, but reset timer to avoid immediate home
                     det.recapture_background()
                     last_seen_ts = time.time()
@@ -108,7 +114,6 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        # Park on exit (optional)
         try:
             send_angles(ser, HOME_PAN, HOME_TILT)
         except Exception:

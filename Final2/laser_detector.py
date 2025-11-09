@@ -6,22 +6,22 @@ import pyrealsense2 as rs
 from typing import Optional, Tuple
 
 # ---------- CAMERA CONTROL ----------
-SET_EXPOSURE = True      # <— turn on to fight auto-exposure
-EXPOSURE_US  = 5000.0    # try 3000..12000 (depends on ambient)
-GAIN         = 32.0      # 16..64 typical
+SET_EXPOSURE = True      
+EXPOSURE_US  = 5000.0    # 3000..12000 
+GAIN         = 32.0      # 16..64 
 AUTO_WB_OFF  = True
 
 # ---------- DETECTION TUNABLES ----------
-# Small laser dot size (in pixels). Adjust if your resolution changes.
+# Small laser dot size (in pixels)
 MIN_AREA = 3
 MAX_AREA = 400
 
-# Red-dominance gates (work even when hue is unreliable)
+# Red-detection thresholds
 R_DOM_MARGIN   = 40      # R must exceed max(G,B) by at least this
 R_ABS_MIN      = 180     # absolute red minimum
 V_ABS_MIN      = 150     # value (brightness) minimum
 
-# HSV red bands (kept but used as a soft vote rather than hard gate)
+# HSV red bands 
 LOW1 = (0,   80,  80)
 HIGH1= (10,  255, 255)
 LOW2 = (170, 80,  80)
@@ -112,7 +112,7 @@ class LaserDotDetector:
         color = np.asanyarray(color_frame.get_data()).copy()
         H, W, _ = color.shape
 
-        # 1) RED-DOMINANCE + BRIGHTNESS (robust when hue is blown out)
+        # 1) Red dominance + brightness thresholding 
         b, g, r = cv2.split(color)
         r_dom = (r.astype(np.int16) - np.maximum(g, b).astype(np.int16))
         red_dom_mask = (r_dom >= R_DOM_MARGIN) & (r >= R_ABS_MIN)

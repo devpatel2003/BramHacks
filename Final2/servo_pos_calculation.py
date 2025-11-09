@@ -43,19 +43,7 @@ class TrigAimer:
         """
         Convert a 3D point (in CAMERA frame, mm) into servo pan/tilt angles (deg).
 
-        Args:
-            target_mm: (X_mm, Y_mm, Z_mm) in camera frame, where
-                       X right (+), Y down (+), Z forward (+)
 
-        Returns:
-            {
-              "pan_deg_raw": <float>,
-              "tilt_deg_raw": <float>,
-              "servo_pan_deg": <float>,
-              "servo_tilt_deg": <float>,
-              "dist_mm": <float>,
-              "Rx": <float>, "Ry": <float>, "Rz": <float>  # vector from pivot to target
-            }
         """
         X, Y, Z = target_mm
         px, py, pz = self.cfg.pivot_mm
@@ -69,12 +57,7 @@ class TrigAimer:
         dist = sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
 
         # --- Geometry ---
-        # Pan: yaw around vertical axis. With Y down and Z forward,
-        # the horizontal plane is X-Z → yaw = atan2(X, Z)
         pan_deg = degrees(atan2(Rx, Rz))
-
-        # Tilt: positive down. A simple, stable choice is to tilt based on Y vs forward range.
-        # Forward range (ground plane distance):
         forward = sqrt(Rx * Rx + Rz * Rz)
         tilt_deg = degrees(atan2(Ry, forward))
 

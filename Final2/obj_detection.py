@@ -2,14 +2,8 @@
 """
 YoloDetector: RealSense + YOLO object detector that IGNORES anything whose
 class name contains 'satell' (e.g., 'satellite', 'satellites'), and returns
-the best non-satellite target in 3D (mm) for your TrigAimer.
+the 3D position of the best non-satellite (debris) target.
 
-Interface matches your ThresholdDetector:
-- get_target_with_vis() -> (target_mm or None, vis_bgr, bbox_xyxy or None)
-- recapture_background(): no-op (kept for key compatibility)
-- close(): stop RealSense pipeline
-
-Followed your obj.py RealSense+YOLO pattern.  (Model path, conf threshold, etc.)
 """
 
 from ultralytics import YOLO
@@ -23,9 +17,9 @@ from typing import Optional, Tuple
 # -----------------------
 # Tunables
 # -----------------------
-MODEL_PATH = "best.pt"       # same as your demo
+MODEL_PATH = "best.pt"       # Our trained model for satellite detection
 CONF_THRESHOLD = 0.25
-FORBIDDEN_SUBSTRINGS = ("satell",)   # filter anything whose class name contains these (casefolded)
+FORBIDDEN_SUBSTRINGS = ("satell",)   # filter anything whose class name contains these 
 CENTER_WINDOW_R = 2          # radius for median depth around bbox center (pixels)
 MIN_VALID_DEPTH_M = 0.10     # drop detections with tiny/invalid depth
 MAX_VALID_DEPTH_M = 20.0
@@ -39,10 +33,10 @@ class YoloDetector:
         self.model = YOLO(model_path)
         self.conf_threshold = float(conf_threshold)
 
-        # RealSense init (follow obj.py)
+        # Init camera
         self.pipeline = rs.pipeline()
         self.config = rs.config()
-        # Match your demo stream sizes
+        # Stream config
         self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
         self.profile = self.pipeline.start(self.config)
@@ -50,7 +44,7 @@ class YoloDetector:
         self.align = rs.align(rs.stream.color)
         self.device = self.profile.get_device()
 
-        # Optional: depth scale & queue size tuning (like your demo)
+        # scale & queue size tuning
         self.depth_scale = None
         for s in self.device.query_sensors():
             if s.supports(rs.option.depth_units):
@@ -64,14 +58,12 @@ class YoloDetector:
         time.sleep(0.2)
 
         # Names map
-        # ultralytics: names come from model or per-result
         self.names = None
         try:
             self.names = self.model.names
         except Exception:
             self.names = None
 
-    # kept for main loop key compatibility; does nothing for YOLO
     def recapture_background(self):
         return
 
@@ -106,7 +98,7 @@ class YoloDetector:
         cname = (clsname or "").casefold()
         return any(key in cname for key in FORBIDDEN_SUBSTRINGS)
 
-    # -------------- main API --------------
+    # -------------- Gets position from depth camera --------------
     def get_target_with_vis(self):
         """
         Returns:
@@ -133,7 +125,7 @@ class YoloDetector:
         names = getattr(r0, "names", None) or self.names or {}
         intr = depth_frame.profile.as_video_stream_profile().intrinsics
 
-        # Choose the best *non-satellite* detection:
+        # Choose the best non-satellite detection:
         # First by highest confidence, tie-break by largest area
         best = None
         best_bbox = None
@@ -156,7 +148,7 @@ class YoloDetector:
                             (x1, max(0, y1 - 7)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 2)
                 continue
 
-            # center point depth (median in a small window)
+            # center point depth 
             cx = int((x1 + x2) / 2)
             cy = int((y1 + y2) / 2)
             depth_m = self._median_depth_m(depth_frame, cx, cy, r=CENTER_WINDOW_R)
@@ -185,7 +177,7 @@ class YoloDetector:
         if best is None:
             return None, annotated, None
 
-        # Convert meters → mm for your TrigAimer
+        # Convert meters → mm 
         X, Y, Z = best
         target_mm = (float(X * 1000.0), float(Y * 1000.0), float(Z * 1000.0))
 

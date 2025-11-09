@@ -4,20 +4,21 @@
 Servo servoPan;
 Servo servoTilt;
 
-// -------- USER PINS ----------
+// -------- PINS ----------
 const int PAN_PIN  = 9;
 const int TILT_PIN = 10;
 // -----------------------------
 
-// Optional: mechanical limits (deg)
+// Mechanical limits (deg)
 const float PAN_MIN  = 0.0;
 const float PAN_MAX  = 180.0;
 const float TILT_MIN = 0.0;
 const float TILT_MAX = 180.0;
 
-// Smoothing: apply fraction of delta each loop (0 = off, 1 = immediate)
+// Smoothing factor
 const float ALPHA = 0.5;
 
+// Home position
 float panDeg  = 80.0;
 float tiltDeg = 43.0;
 

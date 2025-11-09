@@ -3,20 +3,12 @@
 Calibrate camera->pivot offset (px,py,pz) in mm and servo zero angles (pan_zero, tilt_zero) in deg.
 
 Workflow:
-1) The script moves the gimbal through a small grid of pan/tilt commands around your current “forward”.
-2) For each pose it shows the RealSense preview. When your detector finds the target (bbox turns green),
-   press SPACE to record that sample (3D point in camera frame + the commanded servo angles).
-3) After N samples, the script runs a small coordinate-descent least-squares to fit:
-      theta = [px, py, pz, pan_zero, tilt_zero]
+1) Script moves the gimbal through a small grid of pan/tilt commands
+2) For each pose it shows the RealSense preview. The laser dot detector tries to find the laser dot using red point and draws a bbox.,
+   Press SPACE to record that sample (3D point in camera frame + the commanded servo angles).
+3) After enough samples, the script runs a small coordinate-descent least-squares to fit: theta = [px, py, pz, pan_zero, tilt_zero]
    minimizing the sum of squared perpendicular distances from measured points to the rays defined by (pivot, direction(pan,tilt)).
-4) Results are written to calibration.json and a suggested AimerConfig is printed.
 
-Assumptions:
-- pan_sign and tilt_sign are known and fixed (flip if needed).
-- RealSense gives camera-frame XYZ in millimeters (X right, Y down, Z forward) — "y_down".
-- Your Arduino listens for "PAN=...,TILT=..." at 115200 baud like your current sketch.
-
-Requires: numpy, opencv-python, pyserial, your existing threshold_detector.py and trig_class.py
 """
 
 import json, time, math, sys
@@ -25,22 +17,20 @@ import cv2
 import serial
 
 from laser_detector import LaserDotDetector as ThresholdDetector
-#from trig_class import AimerConfig  # for printing a suggestion, not strictly needed
 
 SERIAL_PORT = "/dev/ttyACM0"
 BAUD = 115200
 WINDOW = "Calib view"
 
-# Known (don’t solve in this script). Flip if your axes go the wrong way.
 PAN_SIGN  = 1.0
 TILT_SIGN = -1.0
 AXES_CONV = "y_down"  # RealSense
 
-# Initial guesses (use your current config as a starting point)
+# Initial guesses 
 INIT_PX, INIT_PY, INIT_PZ = (0.0, 50.0, -60.0)   # mm
 INIT_PAN_ZERO, INIT_TILT_ZERO = (98.0, 43.0)   # deg
 
-# Sampling poses (deg) relative to the current belief of zero (small grid around forward)
+# Sampling poses 
 REL_PANS  = [-20, -10, 0, +10, +20]
 REL_TILTS = [-20, -10, 0, +10, +20]
 
@@ -56,21 +46,12 @@ def send_angles(ser, pan, tilt):
 def dir_from_angles(pan_deg_rel, tilt_deg_rel):
     """
     Convert relative angles (0 = forward) into a unit direction vector in camera frame.
-    pan: +right around Y axis (atan2(x,z))
-    tilt: up/down. With "y_down", up is negative tilt in math.
     """
     pan = math.radians(pan_deg_rel)
     tilt = math.radians(tilt_deg_rel)
-    # Forward along +Z, pan rotates around Y, tilt around X' (assuming small gimbal model)
-    # Camera frame: X right, Y down, Z forward
-    # Start with forward vector (0,0,1), apply pan then tilt
-    # After pan: (sin pan, 0, cos pan)
     xz = np.array([math.sin(pan), math.cos(pan)], dtype=float)
     x, z = xz[0], xz[1]
-    # Apply tilt: positive tilt (in math) is +Y up; with y_down, "up" is -Y.
-    # Vector before tilt: (x, 0, z). Tilt around +X:
-    # y' = -sin(tilt)*z  (negative for y_down convention)
-    # z' =  cos(tilt)*z
+
     y = -math.sin(tilt) * z
     z =  math.cos(tilt) * z
     v = np.array([x, y, z], dtype=float)
@@ -89,10 +70,6 @@ def point_line_distance_sq(P, R0, v):
 
 def objective(theta, samples):
     """
-    theta = [px,py,pz, pan_zero, tilt_zero]
-    samples = list of dicts with keys:
-      - P (np.array([x,y,z]) in mm)
-      - pan_cmd (deg), tilt_cmd (deg)
     Returns mean squared distance (mm^2)
     """
     px, py, pz, pan0, tilt0 = theta
@@ -107,8 +84,7 @@ def objective(theta, samples):
 
 def coord_descent(theta0, samples, steps, iters=12, shrink=0.5):
     """
-    Very simple coordinate descent with step shrinking.
-    steps = initial step sizes for each parameter.
+    Simple coordinate descent with step shrinking.
     """
     th = np.array(theta0, dtype=float)
     st = np.array(steps, dtype=float)
@@ -131,7 +107,7 @@ def coord_descent(theta0, samples, steps, iters=12, shrink=0.5):
 
 def main():
     # Connect
-    det = ThresholdDetector()
+    det = ThresholdDetector() # Looks for laser dot
     ser = serial.Serial(SERIAL_PORT, BAUD, timeout=0.2)
     time.sleep(2.0)
 
